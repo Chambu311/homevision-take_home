@@ -46,3 +46,10 @@ htmlcov/
 # Eval artifacts (keep the empty dir)
 eval/out/*
 !eval/out/.gitkeep
+
+# Submission zip
+homevision-takehome.zip
+*.zip
+
+# Private assignment prompt (not for submission)
+CHECKBOX_DETECTION_SPEC.md

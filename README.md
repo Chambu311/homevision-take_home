@@ -2,9 +2,38 @@
 
 Backend take-home assignment for **HomeVision**: an HTTP service that finds checkboxes on appraisal document images and classifies each as checked or unchecked.
 
-**For reviewers:** start with [Quick start](#quick-start-5-minutes), try the [visual demo](#visual-demo), skim [WRITEUP.md](WRITEUP.md) for approach and tradeoffs, then walk [Project layout](#project-layout) (`app/detector.py` is the core).
+## Live demo (production)
 
-Original prompt: [CHECKBOX_DETECTION_SPEC.md](CHECKBOX_DETECTION_SPEC.md)
+**Base URL:** [https://homevision.alquilex.com](https://homevision.alquilex.com)
+
+| Route | Method | What it does |
+|---|---|---|
+| [https://homevision.alquilex.com/](https://homevision.alquilex.com/) | `GET` | Visual demo — samples + upload; red = checked, green = unchecked |
+| [https://homevision.alquilex.com/docs](https://homevision.alquilex.com/docs) | `GET` | Swagger UI — try `POST /detect` in the browser |
+| [https://homevision.alquilex.com/redoc](https://homevision.alquilex.com/redoc) | `GET` | ReDoc API reference |
+| [https://homevision.alquilex.com/health](https://homevision.alquilex.com/health) | `GET` | Liveness (`{"status":"ok"}`) |
+| `https://homevision.alquilex.com/detect` | `POST` | Detect checkboxes — multipart field `file` → JSON `{ "boxes": [...] }` |
+| `https://homevision.alquilex.com/detect?debug=true` | `POST` | Same upload → annotated PNG overlay |
+| `https://homevision.alquilex.com/demo/samples` | `GET` | List sample files (demo) |
+| `https://homevision.alquilex.com/demo/detect/{name}` | `GET` | JSON detection for a sample, e.g. `0.png` |
+| `https://homevision.alquilex.com/demo/annotate/{name}` | `GET` | Annotated JPEG for a sample |
+
+**Prod smoke tests:**
+
+```bash
+curl -s https://homevision.alquilex.com/health
+
+curl -s -X POST https://homevision.alquilex.com/detect \
+  -F "file=@samples/0.png"
+
+curl -s -X POST "https://homevision.alquilex.com/detect?debug=true" \
+  -F "file=@samples/1.jpg" \
+  --output annotated.png
+
+curl -s https://homevision.alquilex.com/demo/detect/2.png
+```
+
+Try the live links above first, then skim [WRITEUP.md](WRITEUP.md), or run locally via [Quick start](#quick-start-5-minutes). Core logic: `app/detector.py`.
 
 ---
 
@@ -169,22 +198,12 @@ eval/
   visualize.py      # Overlay script
   labels/           # JSON ground truth (bootstrap baseline)
 tests/
-WRITEUP.md          # Approach, alternatives, limitations (review meeting)
-CHECKBOX_DETECTION_SPEC.md
+WRITEUP.md          # Approach, alternatives, limitations
 Dockerfile
 docker-compose.yml
 ```
 
 **Detection pipeline (high level):** adaptive threshold → remove long table lines → connected components → square-ring test (rejects letters) → hole proposals (table-fused boxes) → fill classification → NMS. Details in [WRITEUP.md](WRITEUP.md).
-
----
-
-## Review meeting pointers
-
-- **Why classical CV first?** No labeled training set beyond four pages; fast, explainable baseline.
-- **Where to look in code:** `detect_checkboxes()` in [app/detector.py](app/detector.py); tunables in [app/config.py](app/config.py).
-- **Known misses:** dotted boxes, heavy scribbles over a box — listed in WRITEUP.
-- **Production gaps:** upload size limits, auth, deskew, learned classifier — marked with `TODO(production)` in source.
 
 ---
 
