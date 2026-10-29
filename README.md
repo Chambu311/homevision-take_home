@@ -129,12 +129,14 @@ Demo-only routes (also usable for scripting): `GET /demo/samples`, `GET /demo/de
 
 ## Docker (recommended for a clean review machine)
 
+**Local (with host port):**
+
 ```bash
-docker compose up -d --build
+docker compose -f docker-compose.local.yml up -d --build
 curl http://127.0.0.1:8000/health
 ```
 
-Custom host port: `API_PORT=8080 docker compose up -d --build`.
+**Dokploy / Traefik:** use root `docker-compose.yml` (joins `dokploy-network`, no host port bind). In Dokploy Domains: service **`api`**, container port **`8000`**, then **Redeploy** after saving the domain. If you still get Traefik `404 page not found`, check the container is **healthy** (failed healthchecks block routing).
 
 Plain Docker:
 

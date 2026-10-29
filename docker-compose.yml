@@ -4,20 +4,29 @@ services:
       context: .
       dockerfile: Dockerfile
     image: homevision-checkbox-detection:latest
-    container_name: homevision-checkbox-api
     restart: unless-stopped
-    ports:
-      - "${API_PORT:-8000}:8000"
+    # Dokploy: do not bind host ports; Traefik routes by domain to container port 8000.
+    expose:
+      - "8000"
+    networks:
+      - dokploy-network
     environment:
-      # TODO(production): enforce max upload size in app code and set limits here
       PYTHONUNBUFFERED: "1"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)",
+        ]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
-    # OpenCV detection is CPU-bound; one worker avoids duplicate memory use.
+      retries: 5
+      start_period: 90s
     command:
       - uvicorn
       - app.main:app
@@ -27,3 +36,7 @@ services:
       - "8000"
       - --workers
       - "1"
+
+networks:
+  dokploy-network:
+    external: true
