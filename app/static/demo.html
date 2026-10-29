@@ -26,6 +26,7 @@
         var(--bg);
       min-height: 100vh;
     }
+    body.is-busy { cursor: wait; }
     header {
       padding: 1.5rem 1.75rem 0.75rem;
       border-bottom: 1px solid var(--line);
@@ -75,15 +76,58 @@
       border-radius: 6px;
       cursor: pointer;
       font: inherit;
-      transition: border-color 120ms ease, transform 120ms ease;
+      transition: border-color 120ms ease, opacity 120ms ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
     }
-    .sample-btn:hover { border-color: var(--accent); }
+    .sample-btn:hover:not(:disabled) { border-color: var(--accent); }
+    .sample-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
     .sample-btn.active {
       border-color: var(--accent);
       box-shadow: inset 3px 0 0 var(--accent);
     }
+    .sample-btn .label { flex: 1; min-width: 0; }
     .sample-btn .name { font-weight: 600; display: block; }
     .sample-btn .meta { color: var(--muted); font-size: 0.85rem; margin-top: 0.2rem; }
+    .sample-skeleton {
+      height: 3.25rem;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(
+        90deg,
+        #ece8e0 0%,
+        #f7f4ef 45%,
+        #ece8e0 90%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 1.2s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .spinner {
+      width: 1.1rem;
+      height: 1.1rem;
+      border: 2px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    .spinner.lg {
+      width: 2.25rem;
+      height: 2.25rem;
+      border-width: 3px;
+    }
     main { padding: 1rem 1.25rem 2rem; }
     .toolbar {
       display: flex;
@@ -101,6 +145,16 @@
       border: 1px solid var(--line);
       background: #fff;
       font-size: 0.9rem;
+      transition: opacity 150ms ease;
+    }
+    .stat.loading strong {
+      display: inline-block;
+      min-width: 1.5rem;
+      color: transparent;
+      background: linear-gradient(90deg, #e8e4dc, #f5f2ec, #e8e4dc);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s ease-in-out infinite;
+      border-radius: 4px;
     }
     .dot {
       width: 0.65rem;
@@ -118,18 +172,77 @@
       overflow: auto;
       max-height: calc(100vh - 10rem);
       position: relative;
+      min-height: 280px;
     }
     .viewer img {
       display: block;
       width: 100%;
       height: auto;
+      opacity: 0;
+      transition: opacity 200ms ease;
+    }
+    .viewer img.is-visible { opacity: 1; }
+    .viewer-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.85rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+      padding: 2rem;
+      text-align: center;
+      pointer-events: none;
+    }
+    .viewer-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      background: color-mix(in srgb, #fff 82%, transparent);
+      backdrop-filter: blur(2px);
+      z-index: 2;
+      padding: 1.5rem;
+      text-align: center;
+    }
+    .viewer-overlay.is-active { display: flex; }
+    .viewer-overlay .phase {
+      font-size: 0.95rem;
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .viewer-overlay .hint {
+      font-size: 0.85rem;
+      color: var(--muted);
+      max-width: 22rem;
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-height: 1.5rem;
+      margin-bottom: 0.65rem;
     }
     .status {
       color: var(--muted);
       font-size: 0.9rem;
-      min-height: 1.2rem;
     }
     .status.error { color: var(--checked); }
+    .status .status-spinner {
+      display: none;
+      width: 0.9rem;
+      height: 0.9rem;
+      border: 2px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    .status.is-loading .status-spinner { display: inline-block; }
     .upload {
       margin-top: 1.25rem;
       padding-top: 1rem;
@@ -143,6 +256,7 @@
       color: var(--muted);
       margin-bottom: 0.5rem;
     }
+    .upload input:disabled { opacity: 0.5; cursor: not-allowed; }
     .upload input { width: 100%; font: inherit; }
     @media (max-width: 860px) {
       .layout { grid-template-columns: 1fr; }
@@ -162,37 +276,144 @@
   <div class="layout">
     <nav>
       <h2>Samples</h2>
-      <div id="sample-list">Loading…</div>
+      <div id="sample-list" aria-busy="true">
+        <div class="sample-skeleton"></div>
+        <div class="sample-skeleton"></div>
+        <div class="sample-skeleton"></div>
+        <div class="sample-skeleton"></div>
+      </div>
       <div class="upload">
         <label for="file">Or upload an image</label>
-        <input id="file" type="file" accept="image/*" />
+        <input id="file" type="file" accept="image/*" disabled />
       </div>
     </nav>
 
     <main>
-      <div class="toolbar">
-        <span class="stat"><span class="dot unchecked"></span> Unchecked: <strong id="count-unchecked">—</strong></span>
-        <span class="stat"><span class="dot checked"></span> Checked: <strong id="count-checked">—</strong></span>
-        <span class="stat">Total: <strong id="count-total">—</strong></span>
+      <div class="toolbar" id="toolbar">
+        <span class="stat" id="stat-unchecked"><span class="dot unchecked"></span> Unchecked: <strong id="count-unchecked">—</strong></span>
+        <span class="stat" id="stat-checked"><span class="dot checked"></span> Checked: <strong id="count-checked">—</strong></span>
+        <span class="stat" id="stat-total">Total: <strong id="count-total">—</strong></span>
         <span class="legend">Green = unchecked · Red = checked</span>
       </div>
-      <div class="status" id="status">Select a sample to begin.</div>
-      <div class="viewer">
-        <img id="preview" alt="Detection preview will appear here" />
+      <div class="status-row">
+        <span class="status-spinner" id="status-spinner" hidden></span>
+        <div class="status" id="status">Select a sample to begin.</div>
+      </div>
+      <div class="viewer" id="viewer">
+        <div class="viewer-placeholder" id="placeholder">
+          <span>Annotated preview will appear here</span>
+        </div>
+        <div class="viewer-overlay" id="overlay" aria-live="polite">
+          <div class="spinner lg" role="status" aria-label="Loading"></div>
+          <div class="phase" id="overlay-phase">Running detection…</div>
+          <div class="hint" id="overlay-hint">Full pages can take a few seconds on the server.</div>
+        </div>
+        <img id="preview" alt="Detection preview" hidden />
       </div>
     </main>
   </div>
 
   <script>
     const statusEl = document.getElementById("status");
+    const statusSpinner = document.getElementById("status-spinner");
     const preview = document.getElementById("preview");
+    const placeholder = document.getElementById("placeholder");
+    const overlay = document.getElementById("overlay");
+    const overlayPhase = document.getElementById("overlay-phase");
     const sampleList = document.getElementById("sample-list");
+    const fileInput = document.getElementById("file");
+    const statEls = [
+      document.getElementById("stat-unchecked"),
+      document.getElementById("stat-checked"),
+      document.getElementById("stat-total"),
+    ];
+
     let activeBtn = null;
+    let runToken = 0;
+    let previewObjectUrl = null;
+
+    function setCountsLoading(loading) {
+      statEls.forEach((el) => el.classList.toggle("loading", loading));
+      if (loading) {
+        document.getElementById("count-total").textContent = "0";
+        document.getElementById("count-checked").textContent = "0";
+        document.getElementById("count-unchecked").textContent = "0";
+      }
+    }
 
     function setCounts(total, checked) {
+      statEls.forEach((el) => el.classList.remove("loading"));
       document.getElementById("count-total").textContent = total;
       document.getElementById("count-checked").textContent = checked;
       document.getElementById("count-unchecked").textContent = total - checked;
+    }
+
+    function setBusy(busy, phase, hint) {
+      document.body.classList.toggle("is-busy", busy);
+      sampleList.querySelectorAll(".sample-btn").forEach((btn) => {
+        btn.disabled = busy;
+      });
+      fileInput.disabled = busy;
+      overlay.classList.toggle("is-active", busy);
+      statusEl.classList.toggle("is-loading", busy);
+      statusSpinner.hidden = !busy;
+      if (phase) overlayPhase.textContent = phase;
+      if (hint !== undefined) document.getElementById("overlay-hint").textContent = hint;
+    }
+
+    function setStatus(text, isError = false) {
+      statusEl.className = isError ? "status error" : "status";
+      statusEl.textContent = text;
+    }
+
+    function setButtonSpinner(btn, on) {
+      let sp = btn.querySelector(".spinner");
+      if (on && !sp) {
+        sp = document.createElement("span");
+        sp.className = "spinner";
+        sp.setAttribute("aria-hidden", "true");
+        btn.appendChild(sp);
+      } else if (!on && sp) {
+        sp.remove();
+      }
+    }
+
+    function waitForPreviewImage(token) {
+      return new Promise((resolve, reject) => {
+        if (token !== runToken) {
+          reject(new Error("cancelled"));
+          return;
+        }
+        if (preview.complete && preview.naturalWidth > 0) {
+          resolve();
+          return;
+        }
+        const onLoad = () => {
+          cleanup();
+          resolve();
+        };
+        const onError = () => {
+          cleanup();
+          reject(new Error("Failed to load preview image"));
+        };
+        const cleanup = () => {
+          preview.removeEventListener("load", onLoad);
+          preview.removeEventListener("error", onError);
+        };
+        preview.addEventListener("load", onLoad);
+        preview.addEventListener("error", onError);
+      });
+    }
+
+    function showPreview(src) {
+      if (previewObjectUrl) {
+        URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = null;
+      }
+      preview.classList.remove("is-visible");
+      preview.hidden = false;
+      placeholder.hidden = true;
+      preview.src = src;
     }
 
     async function loadSamples() {
@@ -200,11 +421,18 @@
       if (!res.ok) throw new Error("Failed to list samples");
       const data = await res.json();
       sampleList.innerHTML = "";
+      sampleList.removeAttribute("aria-busy");
+      fileInput.disabled = false;
+
       data.samples.forEach((s, i) => {
         const btn = document.createElement("button");
         btn.className = "sample-btn";
         btn.type = "button";
-        btn.innerHTML = `<span class="name">${s.name}</span><span class="meta">${s.width}×${s.height}</span>`;
+        btn.innerHTML = `
+          <span class="label">
+            <span class="name">${s.name}</span>
+            <span class="meta">${s.width}×${s.height}</span>
+          </span>`;
         btn.addEventListener("click", () => runSample(s.name, btn));
         sampleList.appendChild(btn);
         if (i === 0) runSample(s.name, btn);
@@ -212,58 +440,112 @@
     }
 
     async function runSample(name, btn) {
-      if (activeBtn) activeBtn.classList.remove("active");
+      const token = ++runToken;
+      if (activeBtn) {
+        activeBtn.classList.remove("active");
+        setButtonSpinner(activeBtn, false);
+      }
       activeBtn = btn;
       btn.classList.add("active");
-      statusEl.className = "status";
-      statusEl.textContent = `Detecting on ${name}…`;
-      setCounts("—", "—");
+      setButtonSpinner(btn, true);
 
-      const metaRes = await fetch(`/demo/detect/${encodeURIComponent(name)}`);
-      if (!metaRes.ok) {
-        statusEl.className = "status error";
-        statusEl.textContent = `Detection failed for ${name}`;
-        return;
+      setCountsLoading(true);
+      setBusy(true, "Running detection…", "Analyzing checkboxes on the server.");
+      setStatus(`Detecting on ${name}…`);
+
+      try {
+        const metaRes = await fetch(`/demo/detect/${encodeURIComponent(name)}`);
+        if (token !== runToken) return;
+        if (!metaRes.ok) throw new Error(`Detection failed (${metaRes.status})`);
+
+        const meta = await metaRes.json();
+        setCounts(meta.total, meta.checked);
+        setStatus(`Rendering overlay for ${name}…`);
+        setBusy(true, "Rendering annotated preview…", `${meta.total} boxes found — building image.`);
+
+        showPreview(`/demo/annotate/${encodeURIComponent(name)}?t=${Date.now()}`);
+        await waitForPreviewImage(token);
+        if (token !== runToken) return;
+
+        preview.classList.add("is-visible");
+        setStatus(
+          `Done — ${meta.total} boxes (${meta.checked} checked, ${meta.total - meta.checked} unchecked)`
+        );
+      } catch (err) {
+        if (token !== runToken || err.message === "cancelled") return;
+        setStatus(err.message || "Detection failed", true);
+        placeholder.hidden = false;
+        preview.hidden = true;
+      } finally {
+        if (token === runToken) {
+          setBusy(false);
+          setButtonSpinner(btn, false);
+        }
       }
-      const meta = await metaRes.json();
-      setCounts(meta.total, meta.checked);
-      preview.src = `/demo/annotate/${encodeURIComponent(name)}?t=${Date.now()}`;
-      statusEl.textContent = `Done — ${meta.total} boxes (${meta.checked} checked, ${meta.total - meta.checked} unchecked)`;
     }
 
     document.getElementById("file").addEventListener("change", async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      if (activeBtn) activeBtn.classList.remove("active");
-      activeBtn = null;
-      statusEl.className = "status";
-      statusEl.textContent = `Detecting on ${file.name}…`;
+      const token = ++runToken;
+
+      if (activeBtn) {
+        activeBtn.classList.remove("active");
+        setButtonSpinner(activeBtn, false);
+        activeBtn = null;
+      }
+
+      setCountsLoading(true);
+      setBusy(true, "Uploading and detecting…", file.name);
+      setStatus(`Detecting on ${file.name}…`);
 
       const form = new FormData();
       form.append("file", file);
 
-      const jsonRes = await fetch("/detect", { method: "POST", body: form });
-      if (!jsonRes.ok) {
-        statusEl.className = "status error";
-        statusEl.textContent = `Upload failed (${jsonRes.status})`;
-        return;
-      }
-      const data = await jsonRes.json();
-      const checked = data.boxes.filter((b) => b.is_checked).length;
-      setCounts(data.boxes.length, checked);
+      try {
+        const jsonRes = await fetch("/detect", { method: "POST", body: form });
+        if (token !== runToken) return;
+        if (!jsonRes.ok) throw new Error(`Upload failed (${jsonRes.status})`);
 
-      const debugForm = new FormData();
-      debugForm.append("file", file);
-      const imgRes = await fetch("/detect?debug=true", { method: "POST", body: debugForm });
-      const blob = await imgRes.blob();
-      preview.src = URL.createObjectURL(blob);
-      statusEl.textContent = `Done — ${data.boxes.length} boxes (${checked} checked)`;
+        const data = await jsonRes.json();
+        const checked = data.boxes.filter((b) => b.is_checked).length;
+        setCounts(data.boxes.length, checked);
+
+        setStatus(`Rendering overlay for ${file.name}…`);
+        setBusy(true, "Rendering annotated preview…", `${data.boxes.length} boxes found.`);
+
+        const debugForm = new FormData();
+        debugForm.append("file", file);
+        const imgRes = await fetch("/detect?debug=true", { method: "POST", body: debugForm });
+        if (token !== runToken) return;
+        if (!imgRes.ok) throw new Error(`Debug image failed (${imgRes.status})`);
+
+        const blob = await imgRes.blob();
+        previewObjectUrl = URL.createObjectURL(blob);
+        showPreview(previewObjectUrl);
+        await waitForPreviewImage(token);
+        if (token !== runToken) return;
+
+        preview.classList.add("is-visible");
+        setStatus(`Done — ${data.boxes.length} boxes (${checked} checked)`);
+      } catch (err) {
+        if (token !== runToken) return;
+        setStatus(err.message || "Upload failed", true);
+        placeholder.hidden = false;
+        preview.hidden = true;
+      } finally {
+        if (token === runToken) {
+          setBusy(false);
+        }
+        e.target.value = "";
+      }
     });
 
     loadSamples().catch((err) => {
-      statusEl.className = "status error";
-      statusEl.textContent = String(err);
-      sampleList.textContent = "Could not load samples.";
+      sampleList.removeAttribute("aria-busy");
+      fileInput.disabled = false;
+      setStatus(String(err), true);
+      sampleList.innerHTML = "<p class=\"meta\">Could not load samples.</p>";
     });
   </script>
 </body>
