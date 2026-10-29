@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HomeVision — Checkbox Detection Demo</title>
+  <style>
+    :root {
+      --bg: #f4f1ec;
+      --ink: #1a1a1a;
+      --muted: #5c5c5c;
+      --panel: #fffdf9;
+      --line: #d9d2c6;
+      --checked: #c62828;
+      --unchecked: #2e7d32;
+      --accent: #0b3d5c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #e8efe8 0%, transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, #e7eef4 0%, transparent 50%),
+        var(--bg);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1.5rem 1.75rem 0.75rem;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 88%, transparent);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.55rem;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+    }
+    header p {
+      margin: 0.35rem 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      max-width: 52rem;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 0;
+      min-height: calc(100vh - 5.5rem);
+    }
+    nav {
+      border-right: 1px solid var(--line);
+      padding: 1rem;
+      background: var(--panel);
+    }
+    nav h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .sample-btn {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font: inherit;
+      transition: border-color 120ms ease, transform 120ms ease;
+    }
+    .sample-btn:hover { border-color: var(--accent); }
+    .sample-btn.active {
+      border-color: var(--accent);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+    .sample-btn .name { font-weight: 600; display: block; }
+    .sample-btn .meta { color: var(--muted); font-size: 0.85rem; margin-top: 0.2rem; }
+    main { padding: 1rem 1.25rem 2rem; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      align-items: center;
+      margin-bottom: 0.85rem;
+    }
+    .stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font-size: 0.9rem;
+    }
+    .dot {
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dot.checked { background: var(--checked); }
+    .dot.unchecked { background: var(--unchecked); }
+    .legend { color: var(--muted); font-size: 0.85rem; }
+    .viewer {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: auto;
+      max-height: calc(100vh - 10rem);
+      position: relative;
+    }
+    .viewer img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .status {
+      color: var(--muted);
+      font-size: 0.9rem;
+      min-height: 1.2rem;
+    }
+    .status.error { color: var(--checked); }
+    .upload {
+      margin-top: 1.25rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+    }
+    .upload label {
+      display: block;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    .upload input { width: 100%; font: inherit; }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+      nav { border-right: 0; border-bottom: 1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>HomeVision Checkbox Demo</h1>
+    <p>
+      Pick a sample to run <code>POST /detect?debug=true</code>.
+      Red boxes are checked; green boxes are unchecked.
+    </p>
+  </header>
+
+  <div class="layout">
+    <nav>
+      <h2>Samples</h2>
+      <div id="sample-list">Loading…</div>
+      <div class="upload">
+        <label for="file">Or upload an image</label>
+        <input id="file" type="file" accept="image/*" />
+      </div>
+    </nav>
+
+    <main>
+      <div class="toolbar">
+        <span class="stat"><span class="dot unchecked"></span> Unchecked: <strong id="count-unchecked">—</strong></span>
+        <span class="stat"><span class="dot checked"></span> Checked: <strong id="count-checked">—</strong></span>
+        <span class="stat">Total: <strong id="count-total">—</strong></span>
+        <span class="legend">Green = unchecked · Red = checked</span>
+      </div>
+      <div class="status" id="status">Select a sample to begin.</div>
+      <div class="viewer">
+        <img id="preview" alt="Detection preview will appear here" />
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const preview = document.getElementById("preview");
+    const sampleList = document.getElementById("sample-list");
+    let activeBtn = null;
+
+    function setCounts(total, checked) {
+      document.getElementById("count-total").textContent = total;
+      document.getElementById("count-checked").textContent = checked;
+      document.getElementById("count-unchecked").textContent = total - checked;
+    }
+
+    async function loadSamples() {
+      const res = await fetch("/demo/samples");
+      if (!res.ok) throw new Error("Failed to list samples");
+      const data = await res.json();
+      sampleList.innerHTML = "";
+      data.samples.forEach((s, i) => {
+        const btn = document.createElement("button");
+        btn.className = "sample-btn";
+        btn.type = "button";
+        btn.innerHTML = `<span class="name">${s.name}</span><span class="meta">${s.width}×${s.height}</span>`;
+        btn.addEventListener("click", () => runSample(s.name, btn));
+        sampleList.appendChild(btn);
+        if (i === 0) runSample(s.name, btn);
+      });
+    }
+
+    async function runSample(name, btn) {
+      if (activeBtn) activeBtn.classList.remove("active");
+      activeBtn = btn;
+      btn.classList.add("active");
+      statusEl.className = "status";
+      statusEl.textContent = `Detecting on ${name}…`;
+      setCounts("—", "—");
+
+      const metaRes = await fetch(`/demo/detect/${encodeURIComponent(name)}`);
+      if (!metaRes.ok) {
+        statusEl.className = "status error";
+        statusEl.textContent = `Detection failed for ${name}`;
+        return;
+      }
+      const meta = await metaRes.json();
+      setCounts(meta.total, meta.checked);
+      preview.src = `/demo/annotate/${encodeURIComponent(name)}?t=${Date.now()}`;
+      statusEl.textContent = `Done — ${meta.total} boxes (${meta.checked} checked, ${meta.total - meta.checked} unchecked)`;
+    }
+
+    document.getElementById("file").addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (activeBtn) activeBtn.classList.remove("active");
+      activeBtn = null;
+      statusEl.className = "status";
+      statusEl.textContent = `Detecting on ${file.name}…`;
+
+      const form = new FormData();
+      form.append("file", file);
+
+      const jsonRes = await fetch("/detect", { method: "POST", body: form });
+      if (!jsonRes.ok) {
+        statusEl.className = "status error";
+        statusEl.textContent = `Upload failed (${jsonRes.status})`;
+        return;
+      }
+      const data = await jsonRes.json();
+      const checked = data.boxes.filter((b) => b.is_checked).length;
+      setCounts(data.boxes.length, checked);
+
+      const debugForm = new FormData();
+      debugForm.append("file", file);
+      const imgRes = await fetch("/detect?debug=true", { method: "POST", body: debugForm });
+      const blob = await imgRes.blob();
+      preview.src = URL.createObjectURL(blob);
+      statusEl.textContent = `Done — ${data.boxes.length} boxes (${checked} checked)`;
+    });
+
+    loadSamples().catch((err) => {
+      statusEl.className = "status error";
+      statusEl.textContent = String(err);
+      sampleList.textContent = "Could not load samples.";
+    });
+  </script>
+</body>
+</html>

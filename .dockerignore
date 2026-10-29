@@ -1,0 +1,16 @@
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.git
+.gitignore
+.cursor
+*.md
+!README.md
+eval/out
+.env
+.env.*
+.idea
+.vscode
+.DS_Store
