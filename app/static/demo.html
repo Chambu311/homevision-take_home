@@ -353,7 +353,6 @@
       sampleList.querySelectorAll(".sample-btn").forEach((btn) => {
         btn.disabled = busy;
       });
-      fileInput.disabled = busy;
       overlay.classList.toggle("is-active", busy);
       statusEl.classList.toggle("is-loading", busy);
       statusSpinner.hidden = !busy;
@@ -378,16 +377,16 @@
       }
     }
 
-    function waitForPreviewImage(token) {
+    function showPreview(src) {
       return new Promise((resolve, reject) => {
-        if (token !== runToken) {
-          reject(new Error("cancelled"));
-          return;
+        if (previewObjectUrl && previewObjectUrl !== src) {
+          URL.revokeObjectURL(previewObjectUrl);
+          previewObjectUrl = null;
         }
-        if (preview.complete && preview.naturalWidth > 0) {
-          resolve();
-          return;
-        }
+        preview.classList.remove("is-visible");
+        preview.hidden = false;
+        placeholder.hidden = true;
+
         const onLoad = () => {
           cleanup();
           resolve();
@@ -402,18 +401,12 @@
         };
         preview.addEventListener("load", onLoad);
         preview.addEventListener("error", onError);
+        preview.src = src;
+        if (preview.complete && preview.naturalWidth > 0) {
+          cleanup();
+          resolve();
+        }
       });
-    }
-
-    function showPreview(src) {
-      if (previewObjectUrl) {
-        URL.revokeObjectURL(previewObjectUrl);
-        previewObjectUrl = null;
-      }
-      preview.classList.remove("is-visible");
-      preview.hidden = false;
-      placeholder.hidden = true;
-      preview.src = src;
     }
 
     async function loadSamples() {
@@ -463,8 +456,7 @@
         setStatus(`Rendering overlay for ${name}…`);
         setBusy(true, "Rendering annotated preview…", `${meta.total} boxes found — building image.`);
 
-        showPreview(`/demo/annotate/${encodeURIComponent(name)}?t=${Date.now()}`);
-        await waitForPreviewImage(token);
+        await showPreview(`/demo/annotate/${encodeURIComponent(name)}?t=${Date.now()}`);
         if (token !== runToken) return;
 
         preview.classList.add("is-visible");
@@ -484,9 +476,13 @@
       }
     }
 
-    document.getElementById("file").addEventListener("change", async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+    fileInput.addEventListener("change", async (e) => {
+      const picked = e.target.files?.[0];
+      if (!picked) return;
+      // Copy bytes now — disabling/clearing the input can invalidate the original File.
+      const file = new File([picked], picked.name, { type: picked.type || "application/octet-stream" });
+      e.target.value = "";
+
       const token = ++runToken;
 
       if (activeBtn) {
@@ -518,18 +514,18 @@
         debugForm.append("file", file);
         const imgRes = await fetch("/detect?debug=true", { method: "POST", body: debugForm });
         if (token !== runToken) return;
-        if (!imgRes.ok) throw new Error(`Debug image failed (${imgRes.status})`);
+        if (!imgRes.ok) throw new Error(`Preview failed (${imgRes.status})`);
 
         const blob = await imgRes.blob();
-        previewObjectUrl = URL.createObjectURL(blob);
-        showPreview(previewObjectUrl);
-        await waitForPreviewImage(token);
+        const url = URL.createObjectURL(blob);
+        previewObjectUrl = url;
+        await showPreview(url);
         if (token !== runToken) return;
 
         preview.classList.add("is-visible");
         setStatus(`Done — ${data.boxes.length} boxes (${checked} checked)`);
       } catch (err) {
-        if (token !== runToken) return;
+        if (token !== runToken || err.message === "cancelled") return;
         setStatus(err.message || "Upload failed", true);
         placeholder.hidden = false;
         preview.hidden = true;
@@ -537,7 +533,6 @@
         if (token === runToken) {
           setBusy(false);
         }
-        e.target.value = "";
       }
     });
 
