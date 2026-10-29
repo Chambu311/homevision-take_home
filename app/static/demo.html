@@ -48,6 +48,19 @@
       font-size: 0.95rem;
       max-width: 52rem;
     }
+    header a {
+      color: var(--accent);
+      font-weight: 600;
+      text-underline-offset: 0.15em;
+    }
+    header a:hover { text-decoration-thickness: 2px; }
+    .header-links {
+      margin-top: 0.55rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      font-size: 0.9rem;
+    }
     .layout {
       display: grid;
       grid-template-columns: 280px 1fr;
@@ -271,6 +284,11 @@
       Pick a sample to run <code>POST /detect?debug=true</code>.
       Red boxes are checked; green boxes are unchecked.
     </p>
+    <div class="header-links">
+      <a href="/docs" target="_blank" rel="noopener noreferrer">API docs (Swagger)</a>
+      <a href="/redoc" target="_blank" rel="noopener noreferrer">ReDoc</a>
+      <a href="/health">Health</a>
+    </div>
   </header>
 
   <div class="layout">
