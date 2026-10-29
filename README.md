@@ -1,104 +1,199 @@
-# HomeVision Checkbox Detection
+# HomeVision — Checkbox Detection (Take-Home)
 
-HTTP API that finds checkboxes in appraisal document images and classifies each as checked or unchecked.
+Backend take-home assignment for **HomeVision**: an HTTP service that finds checkboxes on appraisal document images and classifies each as checked or unchecked.
 
-## Setup
+**For reviewers:** start with [Quick start](#quick-start-5-minutes), try the [visual demo](#visual-demo), skim [WRITEUP.md](WRITEUP.md) for approach and tradeoffs, then walk [Project layout](#project-layout) (`app/detector.py` is the core).
+
+Original prompt: [CHECKBOX_DETECTION_SPEC.md](CHECKBOX_DETECTION_SPEC.md)
+
+---
+
+## What this delivers
+
+| Deliverable | Location |
+|---|---|
+| `POST /detect` + `GET /health` | [app/main.py](app/main.py) |
+| Classical OpenCV detector | [app/detector.py](app/detector.py) |
+| Tunable parameters | [app/config.py](app/config.py) |
+| Sample pages (4) | [samples/](samples/) |
+| Approach, tradeoffs, limitations | [WRITEUP.md](WRITEUP.md) |
+| Eval harness | [eval/evaluate.py](eval/evaluate.py), [eval/visualize.py](eval/visualize.py) |
+| Tests | [tests/](tests/) |
+| Docker / Compose | [Dockerfile](Dockerfile), [docker-compose.yml](docker-compose.yml) |
+| Production `TODO`s | Comments in `app/main.py`, `app/detector.py` |
+
+---
+
+## Quick start (5 minutes)
+
+**Requirements:** Python 3.11+ (3.13 works locally), or Docker.
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-## Run
+Then open:
 
-```bash
-uvicorn app.main:app --reload --port 8001
-```
-
-| Endpoint | Purpose |
+| URL | What to try |
 |---|---|
-| http://127.0.0.1:8001/ | **HTML demo** — click each sample, see red/green overlays |
-| http://127.0.0.1:8001/docs | OpenAPI docs |
-| `GET /health` | Liveness |
-| `POST /detect` | JSON boxes |
-| `POST /detect?debug=true` | Annotated PNG |
+| http://127.0.0.1:8000/ | **Demo UI** — click each sample; red = checked, green = unchecked |
+| http://127.0.0.1:8000/docs | **Swagger** — try `POST /detect` with a file upload |
+| http://127.0.0.1:8000/health | Liveness (`{"status":"ok"}`) |
 
-### Curl
+**Smoke test from the terminal:**
 
 ```bash
-curl -X POST http://127.0.0.1:8001/detect \
-  -F "file=@samples/0.png"
-
-# Annotated preview
-curl -X POST "http://127.0.0.1:8001/detect?debug=true" \
-  -F "file=@samples/0.png" \
-  --output debug.png
+curl -s http://127.0.0.1:8000/health
+curl -s -X POST http://127.0.0.1:8000/detect -F "file=@samples/0.png" | head -c 400
+pytest -q
 ```
 
-### Docker
+---
+
+## API usage
+
+Clients send images over **HTTP** as **multipart form uploads** (field name **`file`**). PNG and JPEG are supported.
+
+### `POST /detect`
+
+**Request:** `multipart/form-data`, part `file` = image bytes.
+
+**Response (JSON):**
+
+```json
+{
+  "boxes": [
+    { "bbox": [x1, y1, x2, y2], "is_checked": true },
+    { "bbox": [x1, y1, x2, y2], "is_checked": false }
+  ]
+}
+```
+
+- `bbox`: pixel coordinates of top-left `(x1, y1)` and bottom-right `(x2, y2)` in the uploaded image.
+- `is_checked`: `true` if the box appears marked (X, ✓, fill), else `false`.
+
+**Query:** `?debug=true` returns an annotated **PNG** instead of JSON (green = unchecked, red = checked).
+
+**Errors:**
+
+| Case | HTTP |
+|---|---|
+| Missing `file` | 422 |
+| Not decodable as an image | 400 |
+| Oversized upload | 413 (not implemented yet — see `TODO` in code) |
+
+### Examples
 
 ```bash
-docker build -t checkbox-detection .
-docker run -p 8000:8000 checkbox-detection
+# JSON result
+curl -X POST http://127.0.0.1:8000/detect \
+  -F "file=@samples/1.jpg"
+
+# Annotated image
+curl -X POST "http://127.0.0.1:8000/detect?debug=true" \
+  -F "file=@samples/2.png" \
+  --output annotated.png
 ```
 
-### Docker Compose (VPS)
+```javascript
+// Browser / Node (fetch)
+const form = new FormData();
+form.append("file", imageFile);
+const res = await fetch("http://127.0.0.1:8000/detect", { method: "POST", body: form });
+const { boxes } = await res.json();
+```
 
-On the server, clone the repo (or copy the project), then:
+There is **no** URL-fetch endpoint; the server only reads bytes from the upload body.
+
+### `GET /health`
+
+Returns `{"status":"ok"}` for load balancers and Docker healthchecks.
+
+---
+
+## Visual demo
+
+The page at `/` is optional sugar on top of the same API:
+
+1. Lists the four files in `samples/`.
+2. Runs detection and shows counts (checked vs unchecked).
+3. Displays an annotated preview.
+4. Lets you upload any local image.
+
+Demo-only routes (also usable for scripting): `GET /demo/samples`, `GET /demo/detect/{name}`, `GET /demo/annotate/{name}`.
+
+---
+
+## Docker (recommended for a clean review machine)
 
 ```bash
 docker compose up -d --build
 curl http://127.0.0.1:8000/health
 ```
 
-Change the host port with `API_PORT=8080 docker compose up -d --build`.
+Custom host port: `API_PORT=8080 docker compose up -d --build`.
 
-| URL | Purpose |
-|---|---|
-| `http://YOUR_VPS_IP:8000/` | HTML demo |
-| `http://YOUR_VPS_IP:8000/docs` | OpenAPI |
-| `http://YOUR_VPS_IP:8000/detect` | Detection API |
+Plain Docker:
 
-Logs: `docker compose logs -f api`  
-Restart: `docker compose restart api`  
-Stop: `docker compose down`
+```bash
+docker build -t homevision-checkbox-detection .
+docker run -p 8000:8000 homevision-checkbox-detection
+```
 
-Put nginx or Caddy in front for HTTPS and request size limits in production.
+---
 
-## Visual demo
+## Evaluation and tests
 
-Open `/` after starting the server. The sidebar lists `samples/0.png` … `3.png`. Selecting one:
+```bash
+# Unit + API tests
+pytest -q
 
-1. Runs detection
-2. Shows **checked** (red) vs **unchecked** (green) counts
-3. Renders an annotated preview of the page
+# Draw predictions on samples → eval/out/
+python -m eval.visualize
 
-You can also upload any local image from the same page.
+# Precision / recall @ IoU 0.5 (labels bootstrapped from detector — see WRITEUP)
+python -m eval.evaluate
+```
+
+---
 
 ## Project layout
 
 ```
 app/
-  main.py          # FastAPI: /detect, /health, HTML demo routes
-  detector.py      # OpenCV pipeline (no FastAPI imports)
-  config.py        # Tunable thresholds
-  schemas.py       # Response models
-  static/demo.html # Visual test UI
-samples/           # 0.png, 1.jpg, 2.png, 3.png
-eval/              # evaluate.py, visualize.py, labels/
+  main.py           # FastAPI: /detect, /health, demo routes
+  detector.py       # OpenCV pipeline (testable without FastAPI)
+  config.py         # Thresholds (reference width 1700px, scaled per image)
+  schemas.py        # Pydantic models
+  static/demo.html  # Visual tester
+samples/            # 0.png, 1.jpg, 2.png, 3.png — appraisal pages
+eval/
+  evaluate.py       # Metrics script
+  visualize.py      # Overlay script
+  labels/           # JSON ground truth (bootstrap baseline)
 tests/
+WRITEUP.md          # Approach, alternatives, limitations (review meeting)
+CHECKBOX_DETECTION_SPEC.md
+Dockerfile
+docker-compose.yml
 ```
 
-## Eval
+**Detection pipeline (high level):** adaptive threshold → remove long table lines → connected components → square-ring test (rejects letters) → hole proposals (table-fused boxes) → fill classification → NMS. Details in [WRITEUP.md](WRITEUP.md).
 
-```bash
-python -m eval.visualize
-python -m eval.evaluate
-pytest
-```
+---
 
-## Writeup
+## Review meeting pointers
 
-See [WRITEUP.md](WRITEUP.md) for approach, tradeoffs, and limitations.
-# homevision-take_home
+- **Why classical CV first?** No labeled training set beyond four pages; fast, explainable baseline.
+- **Where to look in code:** `detect_checkboxes()` in [app/detector.py](app/detector.py); tunables in [app/config.py](app/config.py).
+- **Known misses:** dotted boxes, heavy scribbles over a box — listed in WRITEUP.
+- **Production gaps:** upload size limits, auth, deskew, learned classifier — marked with `TODO(production)` in source.
+
+---
+
+## License / attribution
+
+Take-home submission for HomeVision. Sample images are appraisal-style forms provided for the exercise.
