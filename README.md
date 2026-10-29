@@ -127,23 +127,15 @@ Demo-only routes (also usable for scripting): `GET /demo/samples`, `GET /demo/de
 
 ---
 
-## Docker (recommended for a clean review machine)
+## Docker (production / Dokploy)
 
-**Local (with host port):**
-
-```bash
-docker compose -f docker-compose.local.yml up -d --build
-curl http://127.0.0.1:8000/health
-```
-
-**Dokploy / Traefik:** use root `docker-compose.yml` (joins `dokploy-network`, no host port bind). In Dokploy Domains: service **`api`**, container port **`8000`**, then **Redeploy** after saving the domain. If you still get Traefik `404 page not found`, check the container is **healthy** (failed healthchecks block routing).
-
-Plain Docker:
+Local development uses the [Quick start](#quick-start-5-minutes) (`uvicorn`). Compose is for deploying behind Traefik/Dokploy.
 
 ```bash
-docker build -t homevision-checkbox-detection .
-docker run -p 8000:8000 homevision-checkbox-detection
+docker compose up -d --build
 ```
+
+`docker-compose.yml` joins **`dokploy-network`** and does **not** bind a host port. In Dokploy Domains: service **`api`**, container port **`8000`**, then **Redeploy** after saving the domain. If you get Traefik `404 page not found`, check the container is **healthy**.
 
 ---
 
